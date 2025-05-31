@@ -1,0 +1,36 @@
+
+# Python-specific ignores
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Virtual environment
+env/
+venv*/
+*.venv
+
+# IDE and editor files
+.idea/
+.vscode/
+*.sublime-project
+*.sublime-workspace
+
+# System files
+.DS_Store
+Thumbs.db
+
+# Temporary files
+*.log
+*.tmp
+*.bak
+
+# Project-specific ignores
+data/chime.wav  # Exclude the sound file; team can download it separately
+
+# Processing-specific ignores
+*.pde.bak
