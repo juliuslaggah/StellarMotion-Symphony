@@ -21,3 +21,6 @@ class VideoCapture:
     def release(self):
         """Release the webcam and clean up."""
         self.cap.release()
+        
+        
+        
