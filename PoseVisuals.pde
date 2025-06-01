@@ -11,9 +11,14 @@ float prevRightWristX = 0, prevRightWristY = 0;
 float prevLeftWristX = 0, prevLeftWristY = 0;
 float prevHeadX = 0, prevHeadY = 0;
 boolean isWaving = false;
-boolean prevIsWaving = false; // Track previous state to detect changes
+boolean prevIsWaving = false;
 
-// Audio setup
+// New gesture flags
+boolean isThumbsUp = false;
+boolean isPeace = false;
+boolean isClap = false;
+
+ // Audio setup
 Minim minim;
 AudioPlayer chimeSound;
 
@@ -35,35 +40,79 @@ void setup() {
 }
 
 void draw() {
+  // Semi-transparent background for fade/trail effect
   fill(0, 0, 0, 30);
   rect(0, 0, width, height);
   
-  // Play sound when waving starts
+  // — Wave sound logic (unchanged) —
   if (isWaving && !prevIsWaving) {
     chimeSound.rewind();
     chimeSound.play();
   }
   prevIsWaving = isWaving;
   
-  // Calculate movement distance for each landmark
-  float rightWristSpeed = dist(rightWristX * width, rightWristY * height, prevRightWristX * width, prevRightWristY * height);
-  float leftWristSpeed = dist(leftWristX * width, leftWristY * height, prevLeftWristX * width, prevLeftWristY * height);
-  float headSpeed = dist(headX * width, headY * height, prevHeadX * width, prevHeadY * height);
+  // — Thumbs-Up: Freeze all particles in place —
+  if (isThumbsUp) {
+    for (Particle p : particles) {
+      p.display();
+    }
+    // We keep isThumbsUp true until the next OSC update flips it off
+    return;
+  }
   
-  // Spawn particles only for landmarks that have moved
+  // — Clap: Clear all existing particles & reset canvas —
+  if (isClap) {
+    particles.clear();       // remove them all
+    background(0);           // clear the screen fully
+    isClap = false;          // reset so it only triggers once
+    return;
+  }
+  
+  // — Peace sign: Spawn a swirling spiral at each wrist location —
+  if (isPeace) {
+    float ix = rightWristX * width, iy = rightWristY * height;
+    float jx = leftWristX * width, jy = leftWristY * height;
+    spawnSpiral(ix, iy);
+    spawnSpiral(jx, jy);
+    // (Optional) You can also let this fall through into the normal particle update
+  }
+  
+  // — Default: Regular particle spawning & updating —
+  float rightWristSpeed = dist(
+    rightWristX * width, rightWristY * height,
+    prevRightWristX * width, prevRightWristY * height
+  );
+  float leftWristSpeed = dist(
+    leftWristX * width, leftWristY * height,
+    prevLeftWristX * width, prevLeftWristY * height
+  );
+  float headSpeed = dist(
+    headX * width, headY * height,
+    prevHeadX * width, prevHeadY * height
+  );
+  
   if (particles.size() < maxParticles && frameCount % 2 == 0) {
     if (rightWristSpeed > movementThreshold) {
-      particles.add(new Particle(rightWristX * width, rightWristY * height, rightWristSpeed, "right_wrist"));
+      particles.add(new Particle(
+        rightWristX * width, rightWristY * height,
+        rightWristSpeed, "right_wrist"
+      ));
     }
     if (leftWristSpeed > movementThreshold) {
-      particles.add(new Particle(leftWristX * width, leftWristY * height, leftWristSpeed, "left_wrist"));
+      particles.add(new Particle(
+        leftWristX * width, leftWristY * height,
+        leftWristSpeed, "left_wrist"
+      ));
     }
     if (headSpeed > movementThreshold) {
-      particles.add(new Particle(headX * width, headY * height, headSpeed, "head"));
+      particles.add(new Particle(
+        headX * width, headY * height,
+        headSpeed, "head"
+      ));
     }
   }
   
-  // Update and draw particles
+  // Update and draw all particles normally
   for (int i = particles.size() - 1; i >= 0; i--) {
     Particle p = particles.get(i);
     p.update();
@@ -86,14 +135,43 @@ void oscEvent(OscMessage msg) {
   if (msg.checkAddrPattern("/pose/right_wrist")) {
     rightWristX = msg.get(0).floatValue();
     rightWristY = msg.get(1).floatValue();
-  } else if (msg.checkAddrPattern("/pose/left_wrist")) {
+  } 
+  else if (msg.checkAddrPattern("/pose/left_wrist")) {
     leftWristX = msg.get(0).floatValue();
     leftWristY = msg.get(1).floatValue();
-  } else if (msg.checkAddrPattern("/pose/head")) {
+  } 
+  else if (msg.checkAddrPattern("/pose/head")) {
     headX = msg.get(0).floatValue();
     headY = msg.get(1).floatValue();
-  } else if (msg.checkAddrPattern("/gesture/waving")) {
-    isWaving = msg.get(0).intValue() == 1;
+  } 
+  else if (msg.checkAddrPattern("/gesture/waving")) {
+    isWaving = (msg.get(0).intValue() == 1);
+  } 
+  else if (msg.checkAddrPattern("/gesture/thumbs_up")) {
+    isThumbsUp = (msg.get(0).intValue() == 1);
+  } 
+  else if (msg.checkAddrPattern("/gesture/peace")) {
+    isPeace = (msg.get(0).intValue() == 1);
+  } 
+  else if (msg.checkAddrPattern("/gesture/clap")) {
+    isClap = (msg.get(0).intValue() == 1);
+  }
+}
+
+void spawnSpiral(float cx, float cy) {
+  int numPoints = 50;
+  for (int i = 0; i < numPoints; i++) {
+    float angle = map(i, 0, numPoints, 0, TWO_PI * 3); // 1.5 turns
+    float r = map(i, 0, numPoints, 0, 50);             // spiral grows outward
+    float sx = cx + cos(angle) * r;
+    float sy = cy + sin(angle) * r;
+    Particle spiralParticle = new Particle(sx, sy, r, "spiral");
+    // Color variation for the spiral
+    spiralParticle.hue = (frameCount * 2 + i * 3) % 360;
+    spiralParticle.life = 100;
+    spiralParticle.vx = cos(angle) * 2;
+    spiralParticle.vy = sin(angle) * 2;
+    particles.add(spiralParticle);
   }
 }
 
@@ -124,14 +202,18 @@ class Particle {
     this.source = source;
     
     if (isWaving) {
-      // Alternate colors when waving
-      if (source.equals("right_wrist")) this.hue = 60;  // Yellow
-      else if (source.equals("left_wrist")) this.hue = 180;  // Cyan
-      else this.hue = 300;  // Magenta
-    } else {
-      if (source.equals("right_wrist")) this.hue = 0;  // Red
-      else if (source.equals("left_wrist")) this.hue = 120;  // Green
-      else this.hue = 240;  // Blue
+      // Colors when waving
+      if (source.equals("right_wrist")) this.hue = 60;   // Yellow
+      else if (source.equals("left_wrist")) this.hue = 180; // Cyan
+      else if (source.equals("head")) this.hue = 300;   // Magenta
+      else this.hue = (frameCount * 2) % 360;           // Spiral fallback
+    } 
+    else {
+      // Colors when not waving
+      if (source.equals("right_wrist")) this.hue = 0;   // Red
+      else if (source.equals("left_wrist")) this.hue = 120; // Green
+      else if (source.equals("head")) this.hue = 240;  // Blue
+      else this.hue = 200;                              // Spiral fallback
     }
   }
   

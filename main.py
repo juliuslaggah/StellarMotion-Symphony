@@ -15,7 +15,7 @@ def main():
                 print("Error: Could not read frame.")
                 break
             
-            # Process frame for pose and hands
+            # Process frame for pose and hands (including new gestures)
             annotated_frame, pose_results, gesture_data = pose.process_frame(frame)
             
             # Extract and send pose landmarks
@@ -23,9 +23,13 @@ def main():
             if landmarks:
                 osc.send_landmarks(landmarks)
             
-            # Send gesture data
-            osc.client.send_message("/gesture/waving", [int(gesture_data['is_waving'])])
+            # Send all gesture flags via OSC
+            osc.send_gesture("waving",    int(gesture_data['is_waving']))
+            osc.send_gesture("thumbs_up", int(gesture_data['is_thumbs_up']))
+            osc.send_gesture("peace",     int(gesture_data['is_peace_sign']))
+            osc.send_gesture("clap",      int(gesture_data['is_clapping']))
             
+            # Show annotated frame locally
             cv2.imshow('Pose Estimation', annotated_frame)
             
             if cv2.waitKey(1) & 0xFF == ord('q'):
